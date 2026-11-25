@@ -98,11 +98,63 @@ npm run db:reset
 - `tests/`: 기반·필수·선택 심화 테스트
 - `docs/API.md`: 상태·이력·입출력 계약
 
-## 제출 전 작성할 내용
+## 제출 정보 (과제 2 구현 결과)
 
-이 부분을 본인의 서비스 소개, 변경 파일, 구현 완료 여부, 실행 환경, 알려진 문제, 보고서·검증 증거 링크와 AI 사용 요약으로 바꾸세요. GitHub URL·커밋 SHA를 LMS에 제출하고 보고서 PDF를 저장소 `docs/report.pdf`와 LMS에 같은 버전으로 첨부합니다.
+### 서비스 소개
+캠퍼스 행사 신청·승인 서비스입니다. 학생은 행사에 신청하고 대기 중인 본인 신청을 취소할 수 있으며, 담당 운영자는 신청을 승인하거나 승인을 취소합니다. 승인 취소 시 같은 행사의 가장 먼저 대기한 1명(created_at ASC, id ASC)을 자동 승인하고, 모든 성공한 상태 변경을 변경 이력으로 남깁니다. 상태 변경과 이력 저장은 하나의 트랜잭션으로 묶여 함께 저장되거나 함께 롤백됩니다.
 
-`node_modules`, 생성 DB·서명 키, 실제 `.env`·JWT와 개인 정보는 제출하지 않습니다. 제공 코드와 직접 구현한 부분을 구분합니다.
+### 구현 완료 여부
+| 항목 | 상태 |
+|---|---|
+| TODO-01 apply (신청 + APPLY 이력) | 완료 |
+| TODO-02 cancel (대기 취소 + CANCEL 이력) | 완료 |
+| TODO-03 approve (직접 승인·정원 + APPROVE 이력) | 완료 |
+| TODO-04 revoke (승인 취소 + 자동 승급 + REVOKE/AUTO_APPROVE 이력, 원인 ID 연결) | 완료 |
+| 모든 변경의 트랜잭션·롤백 | 완료 (`BEGIN IMMEDIATE` ~ `COMMIT`/`ROLLBACK`) |
+| `npm test` 기반 4건 | 4/4 통과 |
+| `npm run test:assignment` 필수 T01~T32 | 32/32 통과 |
+| `npm run test:advanced` 선택 심화 | 1/1 통과 |
+| 화면 검증 U01~U05 | 완료 (보고서 7장) |
+
+### 변경 파일 (제공 코드와 구분)
+- `src/application-service.js` — **직접 구현.** TODO 4개, 트랜잭션 도우미 `inTransaction()`, 담당자 판별 `isManagerOf()`, 409 오류 `ALREADY_APPLIED`·`CAPACITY_FULL`, UNIQUE 위반을 409로 바꾸는 처리 추가.
+- `src/repository.js` — **함수 1개 추가.** `nextPending(eventId)`: 같은 행사 `PENDING` 중 `ORDER BY created_at ASC, id ASC LIMIT 1`.
+- `README.md` — 이 절(제출 정보) 작성.
+- `docs/report.pdf` — 보고서.
+- 그 외 파일(`src/app.js`, `src/auth.js`, `src/db.js`, `public/`, `tests/`, `scripts/`)은 제공 코드 그대로이며 테스트 기대값을 바꾸지 않았습니다.
+
+### 실행 환경
+- Windows 11, Node.js v24.22.1, npm (package-lock.json 포함), 브라우저 Chrome
+- 별도 DB 서버 없음 (Node 내장 `node:sqlite`)
+
+### 새 폴더에서 재현
+```sh
+git clone https://github.com/KJH-ssaljibadeulraemi/web-assignment2.git
+cd web-assignment2
+npm ci
+npm test                  # 기반 4건
+npm run test:assignment   # 필수 32건
+npm run test:advanced     # 선택 심화
+npm start                 # http://127.0.0.1:3000
+# DB 초기화: 서버 종료(Ctrl+C) 후
+npm run db:reset          # RESET 입력
+```
+계정: alice / bob / charlie (학생), manager1 (행사 1·정원 2), manager2 (행사 2·정원 1), 공통 비밀번호 `Classroom123!`
+
+### 알려진 문제·한계
+- 필수 범위에서 실패한 항목은 없습니다.
+- 동시성: `BEGIN IMMEDIATE`로 조회 전에 쓰기 잠금을 잡아 두 서버의 동시 승인 20회 검사를 통과했지만, 반복 성공은 모든 경쟁 상황이 없다는 증명은 아닙니다. SQLite 단일 파일·`busy_timeout=5000` 환경에 한정된 보호입니다.
+- 서버 시작 메시지의 "TODO 구현 전 501" 문구는 제공 코드의 고정 문구이며 실제 동작과 무관합니다.
+
+### 보고서·검증 증거
+- 보고서: [`docs/report.pdf`](docs/report.pdf) — 업무 규칙 표, 상태 전이도, 승인 취소 시퀀스 다이어그램, 트랜잭션 범위와 코드 설명, T01~T32 결과, U01~U05 화면, 롤백 증거, AI 사용 기록
+
+### AI 사용 요약
+- 사용함: Claude (Anthropic).
+- 적용 위치: `src/application-service.js`의 TODO 4개와 `inTransaction()`, `src/repository.js`의 `nextPending()`, 이 README 절, 보고서 초안·다이어그램.
+- 직접 수행·검증: Windows·Node 24 환경에서 코드 반영, `npm test`·`test:assignment`·`test:advanced` 실행 결과 확인, U01~U05 화면 검증과 서버 재시작·DB 초기화 수행, 스크린샷 확인.
+
+`node_modules`, 생성 DB(`data/app.sqlite`)·서명 키(`data/jwt-secret.txt`), `.env`는 `.gitignore`로 제외했습니다.
 
 ## 참고 문서
 
